@@ -1,0 +1,32 @@
+# Jane PDF Renamer Configuration
+# ================================
+
+# Output folder for processed PDFs
+# Set to null to rename files in place
+# Or specify an absolute path or relative path from the source file
+output_folder: null
+
+# Create a "Processed" subfolder in the output directory
+create_processed_subfolder: false
+
+# If output_folder is set and this is true, files go to output_folder/Processed/
+# If output_folder is null and this is true, files go to source_dir/Processed/
+
+# File naming
+naming:
+  # Template: "{last_name}, {first_name} {date} PT Note.pdf"
+  date_format: "MM-DD-YYYY"
+  suffix: "PT Note"
+  
+# Logging (HIPAA compliant - no PHI in logs)
+logging:
+  enabled: true
+  level: INFO
+  # Only logs: timestamp, file path, file hash, success/failure codes
+  log_file: null  # Set to path to enable file logging, null for console only
+
+# Watch mode settings
+watch:
+  poll_interval: 1.0  # seconds
+  process_existing: false  # Process files already in folder on startup
+
