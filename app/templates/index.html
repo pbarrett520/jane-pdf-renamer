@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jane PDF Renamer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚕️ Jane PDF Renamer</h1>
+            <p class="subtitle">
+                Medical Chart PDF Automation
+                <span class="hipaa-badge">HIPAA COMPLIANT</span>
+            </p>
+        </header>
+        
+        <!-- Format Selection -->
+        <div class="card">
+            <h2 class="card-title">📋 Select Output Format</h2>
+            <div class="format-options" id="format-options">
+                <label class="format-option" data-format="current_discharge">
+                    <input type="radio" name="format" value="current_discharge">
+                    <span class="radio-circle"></span>
+                    <span class="format-label">Last, First MMDDYY PT Chart Note.pdf</span>
+                    <span class="format-type current">TODAY</span>
+                </label>
+                <label class="format-option selected" data-format="appt_billing">
+                    <input type="radio" name="format" value="appt_billing" checked>
+                    <span class="radio-circle"></span>
+                    <span class="format-label">Last, First MMDDYY PT Note.pdf</span>
+                    <span class="format-type appt">APPT DATE</span>
+                </label>
+                <label class="format-option" data-format="appt_billing_eval">
+                    <input type="radio" name="format" value="appt_billing_eval">
+                    <span class="radio-circle"></span>
+                    <span class="format-label">Last, First MMDDYY PT Eval Note.pdf</span>
+                    <span class="format-type appt">APPT DATE</span>
+                </label>
+                <label class="format-option" data-format="appt_billing_progress">
+                    <input type="radio" name="format" value="appt_billing_progress">
+                    <span class="radio-circle"></span>
+                    <span class="format-label">Last, First MMDDYY PT Progress Note.pdf</span>
+                    <span class="format-type appt">APPT DATE</span>
+                </label>
+                <label class="format-option" data-format="appt_billing_discharge">
+                    <input type="radio" name="format" value="appt_billing_discharge">
+                    <span class="radio-circle"></span>
+                    <span class="format-label">Last, First MMDDYY PT Discharge Note.pdf</span>
+                    <span class="format-type appt">APPT DATE</span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Drop Zone -->
+        <div class="card">
+            <h2 class="card-title">📄 Upload PDF</h2>
+            <div class="drop-zone" id="drop-zone">
+                <div class="drop-zone-icon">📁</div>
+                <p class="drop-zone-text">Drop PDF files here</p>
+                <p class="drop-zone-hint">or click to browse</p>
+            </div>
+            <input type="file" id="file-input" accept=".pdf" multiple>
+            
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing PDF...</p>
+            </div>
+        </div>
+        
+        <!-- Results -->
+        <div class="card" id="results-card" style="display: none;">
+            <h2 class="card-title">✨ Results</h2>
+            <div class="results-list" id="results-list"></div>
+        </div>
+        
+        <!-- Review Form (shown when needed) -->
+        <div class="card review-form" id="review-form">
+            <h2 class="card-title">⚠️ Manual Review Required</h2>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.85rem;">
+                Could not extract all information automatically. Please verify:
+            </p>
+            <input type="hidden" id="review-filename">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="review-first">First Name</label>
+                    <input type="text" id="review-first" placeholder="First">
+                </div>
+                <div class="form-group">
+                    <label for="review-last">Last Name</label>
+                    <input type="text" id="review-last" placeholder="Last">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="review-date">Date (MMDDYY)</label>
+                    <input type="text" id="review-date" placeholder="121825">
+                </div>
+            </div>
+            <button class="btn btn-primary" id="review-submit">Rename File</button>
+        </div>
+        
+        <!-- Output Folder -->
+        <div class="card">
+            <h2 class="card-title">📂 Output Folder</h2>
+            <div class="output-section">
+                <div class="folder-display" id="folder-display">
+                    <span class="folder-icon">📁</span>
+                    <span class="folder-name" id="folder-name">{{ default_output }}</span>
+                </div>
+                <button class="btn-browse" id="btn-browse" title="Choose output folder">
+                    <span>📂</span> Browse
+                </button>
+            </div>
+            <input type="hidden" id="output-folder" value="{{ default_output }}">
+            <p style="color: var(--text-secondary); font-size: 0.75rem; margin-top: 0.75rem;" id="folder-hint">
+                Click "Browse" to choose where renamed files will be saved.
+            </p>
+        </div>
+    </div>
+    
+    <footer>
+        <p>🔒 All processing happens locally. No data leaves your machine.</p>
+    </footer>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+
