@@ -55,16 +55,20 @@ class ProcessResult(BaseModel):
 def process_pdf(
     file_path: Path,
     file_format: FileFormat,
-    output_folder: Optional[Path] = None
+    output_folder: Optional[Path] = None,
+    original_filename: Optional[str] = None
 ) -> ProcessResult:
     """Process a single PDF file."""
     extractor = PDFExtractor()
     parser = PatientInfoParser()
     
+    # Use original filename for initials extraction, fall back to current filename
+    filename_for_parsing = original_filename or file_path.name
+    
     try:
         # Extract and parse
         text = extractor.extract_text(file_path)
-        info = parser.parse(text)
+        info = parser.parse(text, filename=filename_for_parsing)
         
         # Check confidence
         if info.confidence < 0.8 or not info.first_name or not info.last_name:
@@ -123,6 +127,9 @@ async def upload_file(
     output_folder: str = Form(""),
 ):
     """Handle file upload and processing."""
+    # Preserve original filename for initials extraction
+    original_filename = file.filename
+    
     # Save uploaded file temporarily
     temp_path = UPLOAD_DIR / file.filename
     
@@ -145,8 +152,8 @@ async def upload_file(
         
         output_path.mkdir(parents=True, exist_ok=True)
         
-        # Process
-        result = process_pdf(temp_path, file_format, output_path)
+        # Process - pass original filename for initials extraction
+        result = process_pdf(temp_path, file_format, output_path, original_filename=original_filename)
         
         return JSONResponse(content=result.model_dump())
         

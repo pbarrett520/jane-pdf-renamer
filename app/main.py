@@ -97,7 +97,8 @@ def run_cli(pdf_path: Path, output_folder: Path = None, format_type: str = 'appt
     
     try:
         text = extractor.extract_text(pdf_path)
-        info = parser.parse(text)
+        # Pass filename for initials extraction
+        info = parser.parse(text, filename=pdf_path.name)
         
         # Check confidence
         if info.confidence < 0.8 or not info.first_name or not info.last_name:

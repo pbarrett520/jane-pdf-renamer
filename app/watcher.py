@@ -58,7 +58,8 @@ class PDFHandler(FileSystemEventHandler):
         
         try:
             text = self.extractor.extract_text(pdf_path)
-            info = self.parser.parse(text)
+            # Pass filename for initials extraction
+            info = self.parser.parse(text, filename=pdf_path.name)
             
             if info.needs_review():
                 logger.warning(f"Low confidence for {pdf_path.name} - skipping (needs manual review)")
@@ -86,7 +87,7 @@ class FolderWatcher:
         self.observer = Observer()
         self.handler = PDFHandler(output_folder)
     
-    def run(self):
+    def start(self):
         """Start watching the folder."""
         self.observer.schedule(
             self.handler,
@@ -103,8 +104,11 @@ class FolderWatcher:
         
         self.observer.join()
     
+    def run(self):
+        """Alias for start() for backwards compatibility."""
+        self.start()
+    
     def stop(self):
         """Stop watching."""
         self.observer.stop()
         self.observer.join()
-

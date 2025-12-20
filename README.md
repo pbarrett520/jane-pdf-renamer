@@ -153,7 +153,10 @@ The parser extracts information from Jane PDF exports:
    - Find line containing "Chart"
    - Next non-empty line is patient display name
    - Strip trailing number (e.g., "Test Patient 1" → "Test Patient")
-   - Last word = Last Name, remaining = First Name
+   - **Smart Name Splitting:** Uses initials from filename to correctly split compound names
+     - Filename `..._AN_...pdf` + "Anna Nogales Ramirez" → First: "Anna", Last: "Nogales Ramirez"
+     - Filename `..._TN_...pdf` + "Tony Chan Nguyen" → First: "Tony Chan", Last: "Nguyen"
+   - Falls back to "last word = last name" if no initials found
 
 2. **Appointment Date:**
    - Find pattern: `MonthName DD, YYYY` (e.g., "December 18, 2025")

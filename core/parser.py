@@ -9,6 +9,7 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,10 @@ DATE_PATTERN = re.compile(
 
 # Regex to detect trailing number in patient name (e.g., "Test Patient 1")
 TRAILING_NUMBER_PATTERN = re.compile(r'\s+\d+$')
+
+# Regex to extract initials from Jane filename
+# Pattern: HealthStre_Chart_1_XX_20251218_88209-2.pdf where XX is initials
+INITIALS_PATTERN = re.compile(r'_([A-Z]{2})_\d{8}_')
 
 
 @dataclass
@@ -53,6 +58,25 @@ class PatientInfo:
         return self.confidence < 0.9 or not self.is_complete()
 
 
+def extract_initials_from_filename(filename: str) -> Optional[str]:
+    """
+    Extract patient initials from Jane PDF filename.
+    
+    Args:
+        filename: The original PDF filename from Jane.
+        
+    Returns:
+        Two-letter initials string, or None if not found.
+        
+    Example:
+        "HealthStre_Chart_1_TP_20251218_88209-2.pdf" -> "TP"
+    """
+    match = INITIALS_PATTERN.search(filename)
+    if match:
+        return match.group(1)
+    return None
+
+
 class PatientInfoParser:
     """
     Parses patient name and date from extracted PDF text.
@@ -61,28 +85,35 @@ class PatientInfoParser:
     1. Find line that equals "Chart"
     2. Next non-empty line is patient display name
     3. Strip trailing number from name (e.g., "1" from "Test Patient 1")
-    4. Split by spaces: last word = Last Name, rest = First Name
+    4. Use initials from filename to determine correct first/last split
     5. Find first occurrence of "MonthName DD, YYYY" pattern
     """
 
-    def parse(self, text: str) -> PatientInfo:
+    def parse(self, text: str, filename: Optional[str] = None) -> PatientInfo:
         """
         Parse patient information from extracted PDF text.
         
         Args:
             text: Extracted text from PDF.
+            filename: Original PDF filename (used to extract initials hint).
             
         Returns:
             PatientInfo with extracted data and confidence score.
         """
         logger.debug("Parsing patient information from text")
         
+        # Extract initials from filename if provided
+        initials = None
+        if filename:
+            initials = extract_initials_from_filename(filename)
+            logger.debug(f"Extracted initials hint: {initials}")
+        
         # Parse components
-        first_name, last_name, name_found = self._parse_patient_name(text)
+        first_name, last_name, name_found = self._parse_patient_name(text, initials)
         appointment_date, date_found = self._parse_appointment_date(text)
         
         # Calculate confidence
-        confidence = self._calculate_confidence(name_found, date_found)
+        confidence = self._calculate_confidence(name_found, date_found, initials is not None)
         
         logger.debug(f"Parse complete: confidence={confidence:.2f}")
         
@@ -93,9 +124,13 @@ class PatientInfoParser:
             confidence=confidence
         )
 
-    def _parse_patient_name(self, text: str) -> tuple[str, str, bool]:
+    def _parse_patient_name(self, text: str, initials: Optional[str] = None) -> tuple[str, str, bool]:
         """
         Extract patient name from text.
+        
+        Args:
+            text: Extracted PDF text.
+            initials: Two-letter initials from filename (e.g., "TP" for Test Patient).
         
         Returns:
             Tuple of (first_name, last_name, found_flag)
@@ -126,14 +161,33 @@ class PatientInfoParser:
         # Strip trailing number (e.g., "Test Patient 1" -> "Test Patient")
         name = TRAILING_NUMBER_PATTERN.sub('', patient_name_line).strip()
         
-        # Split into first/last name
-        # Last word = Last Name, everything before = First Name
+        # Split into first/last name using initials if available
         parts = name.split()
         
         if len(parts) < 2:
             # Only one word - use as last name
             return '', parts[0] if parts else '', True
         
+        # If we have initials, use them to find the correct split point
+        if initials and len(initials) == 2:
+            first_initial = initials[0].upper()
+            last_initial = initials[1].upper()
+            
+            # Try each possible split point
+            for split_idx in range(1, len(parts)):
+                potential_first = ' '.join(parts[:split_idx])
+                potential_last = ' '.join(parts[split_idx:])
+                
+                # Check if initials match
+                if (potential_first and potential_last and
+                    potential_first[0].upper() == first_initial and
+                    potential_last[0].upper() == last_initial):
+                    return potential_first, potential_last, True
+            
+            # No match found - fall through to default behavior
+            logger.debug("Initials did not match any split point, using default")
+        
+        # Default: Last word = Last Name, everything before = First Name
         last_name = parts[-1]
         first_name = ' '.join(parts[:-1])
         
@@ -166,7 +220,7 @@ class PatientInfoParser:
             # Invalid date
             return None, False
 
-    def _calculate_confidence(self, name_found: bool, date_found: bool) -> float:
+    def _calculate_confidence(self, name_found: bool, date_found: bool, had_initials: bool) -> float:
         """
         Calculate confidence score based on what was found.
         
@@ -179,4 +233,3 @@ class PatientInfoParser:
             return 0.5
         else:
             return 0.0
-

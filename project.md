@@ -130,6 +130,58 @@ app/
 
 ---
 
+### Phase 7: Multi-Word Surname Parsing Fix
+
+**Objective:** Correctly handle Latino/compound surnames (e.g., "Anna Nogales Ramirez") and multi-word first names (e.g., "Tony Chan Nguyen").
+
+**Problem Identified:**
+The original parser assumed the last word was always the last name:
+```python
+# Old approach - INCORRECT for compound names
+parts = name.split()
+last_name = parts[-1]      # "Ramirez" 
+first_name = ' '.join(parts[:-1])  # "Anna Nogales" ← WRONG!
+```
+
+For "Anna Nogales Ramirez" this produced:
+- First: "Anna Nogales", Last: "Ramirez" ❌
+
+But Harriet needed:
+- First: "Anna", Last: "Nogales Ramirez" ✓
+
+**Solution: Use Filename Initials**
+
+Jane PDF filenames include patient initials (e.g., `HealthStre_Chart_1_AN_20251218.pdf` for "Anna Nogales Ramirez"):
+- First letter = first name initial
+- Second letter = last name initial
+
+**New Algorithm:**
+```python
+# Try each split point until initials match
+for split_idx in range(1, len(parts)):
+    potential_first = ' '.join(parts[:split_idx])
+    potential_last = ' '.join(parts[split_idx:])
+    
+    if (potential_first[0] == first_initial and 
+        potential_last[0] == last_initial):
+        return potential_first, potential_last  # ✓ MATCH
+```
+
+**Examples:**
+| Full Name | Initials | First Name | Last Name |
+|-----------|----------|------------|-----------|
+| Anna Nogales Ramirez | AN | Anna | Nogales Ramirez |
+| Tony Chan Nguyen | TN | Tony Chan | Nguyen |
+| Test Patient | TP | Test | Patient |
+
+**Files Updated:**
+- `core/parser.py` - Added `extract_initials_from_filename()` function and initials-based splitting logic
+- `app/web.py` - Passes original filename to parser for initials extraction
+- `app/main.py` - Passes filename to parser in CLI mode
+- `app/watcher.py` - Passes filename to parser in watch mode
+
+---
+
 ## 🏗️ Final Architecture
 
 ```
@@ -210,6 +262,7 @@ jane-pdf-renamer/
 2. **Web > Native for Testing** - Playwright can interact with browser UI
 3. **Separation of Concerns** - Embedded HTML is unmaintainable
 4. **File System Access API** - Modern browsers have powerful local file APIs
+5. **Use All Available Data** - Filename metadata (initials) solved name parsing ambiguity
 
 ---
 
