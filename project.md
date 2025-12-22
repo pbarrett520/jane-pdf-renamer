@@ -223,6 +223,52 @@ Enhanced the UI to make batch processing obvious:
 
 ---
 
+### Phase 9: Smart Browser Detection
+
+**Objective:** Automatically open Chromium-based browsers for users with Safari/Firefox as default.
+
+**Problem:**
+- File System Access API (folder picker) only works in Chrome, Edge, and Brave
+- Users with Safari or Firefox as default had to manually copy-paste the URL into Chrome
+- Poor user experience for Harriet who has Safari as default
+
+**Solution:**
+Implemented automatic Chromium browser detection:
+
+1. **macOS Detection:**
+   ```python
+   # Uses osascript to check if applications are installed
+   subprocess.run(['osascript', '-e', 'id of application "Google Chrome"'])
+   ```
+   - Checks Chrome → Edge → Brave in priority order
+
+2. **Windows Detection:**
+   ```python
+   # Checks Windows registry for installed browsers
+   winreg.OpenKey(HKEY_LOCAL_MACHINE, r"SOFTWARE\...\chrome.exe")
+   ```
+   - Checks Chrome → Edge → Brave in priority order
+
+3. **Smart Opening:**
+   - macOS: `open -a "Google Chrome" <url>`
+   - Windows: `start chrome <url>`
+   - Falls back to `webbrowser.open()` if no Chromium browser found
+
+**User Experience:**
+```bash
+$ python -m app
+🌐 Starting web server at http://127.0.0.1:8080
+✨ Opening in Chrome (supports folder picker)
+Press Ctrl+C to stop...
+```
+
+**Benefits:**
+- Harriet no longer needs to copy-paste URLs
+- Folder picker works immediately
+- Graceful fallback for users without Chromium browsers
+
+---
+
 ## 🏗️ Final Architecture
 
 ```

@@ -78,6 +78,9 @@ python -m app --port 3000
 python -m app --no-browser
 ```
 
+**🌐 Smart Browser Detection:**
+The app automatically detects and opens Chrome, Edge, or Brave if installed (these support the native folder picker). If none are found, it falls back to your default browser.
+
 This opens a browser at `http://127.0.0.1:8080` where you can:
 - **Select output format** from 5 different naming conventions
 - **Drag & drop** one or more PDF files directly onto the page (batch processing supported)
