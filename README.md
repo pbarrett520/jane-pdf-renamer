@@ -22,7 +22,9 @@ This tool is designed with privacy as a first principle:
 ## ⚡ Features
 
 - **Web-based GUI** - Modern browser interface with drag-and-drop
+- **Batch Processing** - Process multiple PDFs at once with live progress tracking
 - **5 Naming Formats** - Choose date source (today vs appointment) and suffix
+- **Smart Name Parsing** - Handles multi-word surnames using filename initials
 - **Native Folder Picker** - Click to select output directory
 - **CLI Mode** - For scripting and automation
 - **Watch Mode** - Auto-process new PDFs in a folder
@@ -78,10 +80,11 @@ python -m app --no-browser
 
 This opens a browser at `http://127.0.0.1:8080` where you can:
 - **Select output format** from 5 different naming conventions
-- **Drag & drop** PDF files directly onto the page
-- **Click to browse** and select files manually
+- **Drag & drop** one or more PDF files directly onto the page (batch processing supported)
+- **Click to browse** and select multiple files manually
 - **Review and edit** patient info if parsing confidence is low
 - **Browse for output folder** using native folder picker
+- **Process batches** - upload multiple files at once with live progress tracking
 
 ### Option 2: CLI Mode
 

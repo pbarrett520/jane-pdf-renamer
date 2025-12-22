@@ -50,8 +50,28 @@ async function handleFiles(files) {
     reviewForm.classList.remove('visible');
     
     const outputFolder = document.getElementById('output-folder').value;
+    const loadingProgress = document.getElementById('loading-progress');
+    const totalFiles = files.length;
+    
+    // Update loading text based on count
+    const loadingText = document.getElementById('loading-text');
+    if (totalFiles === 1) {
+        loadingText.textContent = 'Processing PDF...';
+        loadingProgress.textContent = '';
+    } else {
+        loadingText.textContent = `Processing ${totalFiles} PDFs...`;
+    }
+    
+    let processedCount = 0;
     
     for (const file of files) {
+        processedCount++;
+        
+        // Update progress for batch processing
+        if (totalFiles > 1) {
+            loadingProgress.textContent = `File ${processedCount} of ${totalFiles}`;
+        }
+        
         if (!file.name.toLowerCase().endsWith('.pdf')) {
             addResult({
                 success: false,
@@ -218,7 +238,26 @@ handleFiles = async function(files) {
         resultsList.innerHTML = '';
         reviewForm.classList.remove('visible');
         
+        const loadingProgress = document.getElementById('loading-progress');
+        const totalFiles = files.length;
+        const loadingText = document.getElementById('loading-text');
+        
+        if (totalFiles === 1) {
+            loadingText.textContent = 'Processing PDF...';
+            loadingProgress.textContent = '';
+        } else {
+            loadingText.textContent = `Processing ${totalFiles} PDFs...`;
+        }
+        
+        let processedCount = 0;
+        
         for (const file of files) {
+            processedCount++;
+            
+            if (totalFiles > 1) {
+                loadingProgress.textContent = `File ${processedCount} of ${totalFiles}`;
+            }
+            
             if (!file.name.toLowerCase().endsWith('.pdf')) {
                 addResult({
                     success: false,

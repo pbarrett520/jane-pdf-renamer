@@ -182,6 +182,47 @@ for split_idx in range(1, len(parts)):
 
 ---
 
+### Phase 8: Batch Processing UX Enhancements
+
+**Objective:** Make batch processing capability more visible and user-friendly.
+
+**Discovery:**
+The application already supported batch processing since Phase 3:
+- HTML file input had `multiple` attribute
+- JavaScript looped through all dropped/selected files
+- Results displayed sequentially
+
+**Problem:**
+Users didn't realize they could process multiple files because the UI didn't clearly indicate this capability.
+
+**Solution:**
+Enhanced the UI to make batch processing obvious:
+
+1. **Updated Drop Zone Text:**
+   - Before: "Drop PDF files here"
+   - After: "Drop one or more PDF files here" + "supports batch processing"
+
+2. **Added Progress Tracking:**
+   ```javascript
+   if (totalFiles > 1) {
+       loadingText.textContent = `Processing ${totalFiles} PDFs...`;
+       loadingProgress.textContent = `File ${processedCount} of ${totalFiles}`;
+   }
+   ```
+
+3. **Visual Feedback:**
+   - Shows "Processing 5 PDFs..." when multiple files are uploaded
+   - Live progress: "File 3 of 5"
+   - All results displayed in a scrollable list
+
+**User Experience:**
+- Harriet can now select/drag 10+ PDFs at once
+- Clear feedback on processing progress
+- Sequential processing prevents overwhelming the system
+- All results visible at the end for review
+
+---
+
 ## 🏗️ Final Architecture
 
 ```

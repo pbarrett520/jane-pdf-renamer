@@ -56,17 +56,18 @@
         
         <!-- Drop Zone -->
         <div class="card">
-            <h2 class="card-title">📄 Upload PDF</h2>
+            <h2 class="card-title">📄 Upload PDF(s)</h2>
             <div class="drop-zone" id="drop-zone">
                 <div class="drop-zone-icon">📁</div>
-                <p class="drop-zone-text">Drop PDF files here</p>
-                <p class="drop-zone-hint">or click to browse</p>
+                <p class="drop-zone-text">Drop one or more PDF files here</p>
+                <p class="drop-zone-hint">or click to browse • supports batch processing</p>
             </div>
             <input type="file" id="file-input" accept=".pdf" multiple>
             
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>Processing PDF...</p>
+                <p id="loading-text">Processing PDFs...</p>
+                <p id="loading-progress" style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.5rem;"></p>
             </div>
         </div>
         
