@@ -130,8 +130,11 @@ async def upload_file(
     # Preserve original filename for initials extraction
     original_filename = file.filename
     
-    # Save uploaded file temporarily
-    temp_path = UPLOAD_DIR / file.filename
+    # Save uploaded file temporarily with unique name to avoid conflicts
+    import uuid
+    unique_id = uuid.uuid4().hex[:8]
+    temp_filename = f"{unique_id}_{file.filename}"
+    temp_path = UPLOAD_DIR / temp_filename
     
     try:
         content = await file.read()
@@ -155,9 +158,23 @@ async def upload_file(
         # Process - pass original filename for initials extraction
         result = process_pdf(temp_path, file_format, output_path, original_filename=original_filename)
         
+        # Clean up temp file if it still exists (in case of errors)
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+        
         return JSONResponse(content=result.model_dump())
         
     except Exception as e:
+        # Clean up temp file on error
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+        
         return JSONResponse(
             content={"success": False, "error": str(e), "original_name": file.filename},
             status_code=500

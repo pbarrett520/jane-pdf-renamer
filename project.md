@@ -269,6 +269,80 @@ Press Ctrl+C to stop...
 
 ---
 
+### Phase 10: Smart Collision Detection
+
+**Objective:** Fix issue where collision hashes were being added unnecessarily.
+
+**Problem:**
+- Users reported "random numbers" appearing at the end of filenames
+- Investigation revealed these were MD5 hash suffixes from collision detection
+- Collisions were triggered when processing the same file multiple times
+- Example: `"Patient, Test 121825 PT Note_a3f5c1.pdf"`
+
+**Root Causes:**
+1. **Temp file naming conflicts:** Multiple uploads of the same source file used the same temp filename, potentially causing conflicts
+2. **Identical file collisions:** When the same PDF was processed twice, the second upload would collide with the first and add a hash, even though they were identical files
+3. **No cleanup:** Temp files weren't being cleaned up after processing
+
+**Solutions Implemented:**
+
+1. **Unique Temp Filenames:**
+   ```python
+   # Before: temp_path = UPLOAD_DIR / file.filename
+   # After: 
+   unique_id = uuid.uuid4().hex[:8]
+   temp_path = UPLOAD_DIR / f"{unique_id}_{file.filename}"
+   ```
+   - Each upload gets a unique temp filename
+   - Prevents temp file conflicts between simultaneous uploads
+
+2. **Smart Collision Detection:**
+   ```python
+   if target_path.exists() and target_path != source_path:
+       # Check if files are identical (same content)
+       if self._files_are_identical(source_path, target_path):
+           logger.info(f"Target file identical to source, replacing")
+           target_path.unlink()  # Remove existing identical file
+       else:
+           logger.warning(f"Collision detected - different file exists")
+           target_path = self._handle_collision(...)  # Add hash
+   ```
+   - Compares MD5 hashes of source and target files
+   - If identical → replace without adding hash
+   - If different → add collision hash (preserves both files)
+
+3. **Temp File Cleanup:**
+   ```python
+   # Clean up temp file after processing
+   if temp_path.exists():
+       try:
+           temp_path.unlink()
+       except Exception as cleanup_error:
+           logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
+   ```
+   - Removes temp files after successful processing
+   - Also cleans up on error
+
+**When Hashes ARE Added (Correct Behavior):**
+- Same patient, same date, **different file content** → Hash added to preserve both
+- Example: Multiple visits on the same day with different notes
+
+**When Hashes Are NOT Added (Fixed):**
+- Same patient, same date, **identical file** → Replaces without hash
+- Example: User uploads the same PDF twice by accident
+
+**Test Coverage:**
+- Added `test_rename_identical_file_replaces_without_hash` to verify fix
+- Modified `test_rename_hash_is_short` to test with different file content
+- All 29 tests passing
+
+**User Experience:**
+- No more unexpected "random numbers" for identical files
+- Proper collision handling for genuinely different files
+- Cleaner temp directory management
+
+---
+
 ## 🏗️ Final Architecture
 
 ```

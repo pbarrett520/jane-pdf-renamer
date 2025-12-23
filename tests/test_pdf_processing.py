@@ -321,6 +321,37 @@ class TestFileRenamer:
         stem = result.stem  # "Patient, Test 121825 PT Note_HASH"
         hash_part = stem.split("_")[-1]
         assert 6 <= len(hash_part) <= 8
+    
+    def test_rename_identical_file_replaces_without_hash(self, temp_dir):
+        """Renaming an identical file should replace it without adding hash."""
+        renamer = FileRenamer(output_folder=temp_dir)
+        info = PatientInfo(
+            first_name="Test",
+            last_name="Patient",
+            appointment_date=date(2025, 12, 18),
+            confidence=1.0
+        )
+        
+        # Use the test_input.pdf from temp_dir
+        first_source = temp_dir / "test_input.pdf"
+        
+        # Process file first time
+        first_result = renamer.rename_file(first_source, info)
+        expected_name = first_result.name
+        
+        # Make a copy of the same file to process again
+        second_source = temp_dir / "source_copy.pdf"
+        shutil.copy(SAMPLE_PDF, second_source)
+        
+        # Process identical file again
+        second_result = renamer.rename_file(second_source, info)
+        
+        # Should have the same name (no hash added for identical file)
+        assert second_result.name == expected_name
+        
+        # Should only have one file in output directory named with patient info
+        patient_files = list(temp_dir.glob("Patient, Test *.pdf"))
+        assert len(patient_files) == 1
 
 
 class TestEndToEndProcessing:

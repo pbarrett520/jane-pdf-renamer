@@ -28,7 +28,7 @@ This tool is designed with privacy as a first principle:
 - **Native Folder Picker** - Click to select output directory
 - **CLI Mode** - For scripting and automation
 - **Watch Mode** - Auto-process new PDFs in a folder
-- **Collision Prevention** - Appends hash if filename exists
+- **Smart Collision Handling** - Identical files replace without hash, different files preserved
 
 ## 📋 Naming Formats
 

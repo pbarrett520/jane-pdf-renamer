@@ -136,9 +136,16 @@ class FileRenamer:
         
         target_path = target_dir / filename
         
-        # Handle collision
+        # Handle collision - but check if the existing file is identical first
         if target_path.exists() and target_path != source_path:
-            target_path = self._handle_collision(source_path, target_path)
+            # Check if files are identical (same content)
+            if self._files_are_identical(source_path, target_path):
+                logger.info(f"Target file identical to source, replacing: {target_path.name}")
+                # Remove the existing file since it's identical
+                target_path.unlink()
+            else:
+                logger.warning(f"Collision detected - different file exists: {target_path.name}")
+                target_path = self._handle_collision(source_path, target_path)
         
         # Log operation (file path and hash only, no PHI)
         file_hash = self._compute_short_hash(source_path)
@@ -181,12 +188,31 @@ class FileRenamer:
         
         return new_target
 
-    def _compute_short_hash(self, file_path: Path) -> str:
+    def _files_are_identical(self, file1: Path, file2: Path) -> bool:
         """
-        Compute a short hash of file content.
+        Check if two files have identical content by comparing their hashes.
+        
+        Args:
+            file1: First file path.
+            file2: Second file path.
+            
+        Returns:
+            True if files have identical content, False otherwise.
+        """
+        try:
+            hash1 = self._compute_full_hash(file1)
+            hash2 = self._compute_full_hash(file2)
+            return hash1 == hash2
+        except Exception as e:
+            logger.warning(f"Error comparing files: {e}")
+            return False
+    
+    def _compute_full_hash(self, file_path: Path) -> str:
+        """
+        Compute a full hash of file content for comparison.
         
         Returns:
-            6-character hex hash.
+            Full MD5 hex hash.
         """
         hasher = hashlib.md5()
         
@@ -195,5 +221,13 @@ class FileRenamer:
             for chunk in iter(lambda: f.read(8192), b''):
                 hasher.update(chunk)
         
-        # Return first 6 characters
-        return hasher.hexdigest()[:6]
+        return hasher.hexdigest()
+    
+    def _compute_short_hash(self, file_path: Path) -> str:
+        """
+        Compute a short hash of file content.
+        
+        Returns:
+            6-character hex hash.
+        """
+        return self._compute_full_hash(file_path)[:6]
