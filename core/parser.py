@@ -9,7 +9,6 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date
-from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -36,6 +35,10 @@ TRAILING_NUMBER_PATTERN = re.compile(r'\s+\d+$')
 # Pattern: HealthStre_Chart_1_XX_20251218_88209-2.pdf where XX is initials
 INITIALS_PATTERN = re.compile(r'_([A-Z]{2})_\d{8}_')
 
+# Regex to detect DOI (Date of Injury) or DOB (Date of Birth) in patient name
+# Pattern: (DOI:MMDDYY) or (DOB:MMDDYY) or (DOI: MMDDYY) or (DOB: MMDDYY)
+DOI_DOB_PATTERN = re.compile(r'\s*\((DOI|DOB):?\s*(\d{6})\)\s*$', re.IGNORECASE)
+
 
 @dataclass
 class PatientInfo:
@@ -44,13 +47,16 @@ class PatientInfo:
     last_name: str
     appointment_date: Optional[date]
     confidence: float  # 0.0 to 1.0
+    date_code: Optional[str] = None  # e.g., "DOI010125" or "DOB010125"
 
     def is_complete(self) -> bool:
         """Check if all required fields are present."""
+        # Either appointment_date OR date_code is required
+        has_date = self.appointment_date is not None or self.date_code is not None
         return bool(
             self.first_name and 
             self.last_name and 
-            self.appointment_date
+            has_date
         )
 
     def needs_review(self) -> bool:
@@ -108,12 +114,13 @@ class PatientInfoParser:
             initials = extract_initials_from_filename(filename)
             logger.debug(f"Extracted initials hint: {initials}")
         
-        # Parse components
-        first_name, last_name, name_found = self._parse_patient_name(text, initials)
+        # Parse components (including DOI/DOB code if present)
+        first_name, last_name, name_found, date_code = self._parse_patient_name(text, initials)
         appointment_date, date_found = self._parse_appointment_date(text)
         
-        # Calculate confidence
-        confidence = self._calculate_confidence(name_found, date_found, initials is not None)
+        # Calculate confidence - date_code also counts as having a date
+        has_date = date_found or date_code is not None
+        confidence = self._calculate_confidence(name_found, has_date, initials is not None)
         
         logger.debug(f"Parse complete: confidence={confidence:.2f}")
         
@@ -121,10 +128,11 @@ class PatientInfoParser:
             first_name=first_name,
             last_name=last_name,
             appointment_date=appointment_date,
-            confidence=confidence
+            confidence=confidence,
+            date_code=date_code
         )
 
-    def _parse_patient_name(self, text: str, initials: Optional[str] = None) -> tuple[str, str, bool]:
+    def _parse_patient_name(self, text: str, initials: Optional[str] = None) -> tuple[str, str, bool, Optional[str]]:
         """
         Extract patient name from text.
         
@@ -133,7 +141,8 @@ class PatientInfoParser:
             initials: Two-letter initials from filename (e.g., "TP" for Test Patient).
         
         Returns:
-            Tuple of (first_name, last_name, found_flag)
+            Tuple of (first_name, last_name, found_flag, date_code)
+            date_code is e.g. "DOI010125" if (DOI:010125) was found in the name
         """
         lines = text.split('\n')
         
@@ -145,7 +154,7 @@ class PatientInfoParser:
                 break
         
         if chart_index is None:
-            return '', '', False
+            return '', '', False, None
         
         # Find next non-empty line after "Chart"
         patient_name_line = None
@@ -156,17 +165,33 @@ class PatientInfoParser:
                 break
         
         if not patient_name_line:
-            return '', '', False
+            return '', '', False, None
         
-        # Strip trailing number (e.g., "Test Patient 1" -> "Test Patient")
-        name = TRAILING_NUMBER_PATTERN.sub('', patient_name_line).strip()
+        # Check for DOI/DOB pattern (e.g., "(DOI:010125)" or "(DOB:010125)")
+        date_code = None
+        doi_dob_match = DOI_DOB_PATTERN.search(patient_name_line)
+        if doi_dob_match:
+            # Extract the code type (DOI or DOB) and date
+            code_type = doi_dob_match.group(1).upper()  # "DOI" or "DOB"
+            date_value = doi_dob_match.group(2)  # "010125"
+            date_code = f"{code_type}{date_value}"  # "DOI010125"
+            
+            # Remove the DOI/DOB part from the name
+            patient_name_line = DOI_DOB_PATTERN.sub('', patient_name_line).strip()
+            
+            # When DOI/DOB is present, DON'T strip trailing numbers
+            # (they're part of the compound name like "Patient 1")
+            name = patient_name_line
+        else:
+            # No DOI/DOB - strip trailing number (e.g., "Test Patient 1" -> "Test Patient")
+            name = TRAILING_NUMBER_PATTERN.sub('', patient_name_line).strip()
         
         # Split into first/last name using initials if available
         parts = name.split()
         
         if len(parts) < 2:
             # Only one word - use as last name
-            return '', parts[0] if parts else '', True
+            return '', parts[0] if parts else '', True, date_code
         
         # If we have initials, use them to find the correct split point
         if initials and len(initials) == 2:
@@ -182,7 +207,7 @@ class PatientInfoParser:
                 if (potential_first and potential_last and
                     potential_first[0].upper() == first_initial and
                     potential_last[0].upper() == last_initial):
-                    return potential_first, potential_last, True
+                    return potential_first, potential_last, True, date_code
             
             # No match found - fall through to default behavior
             logger.debug("Initials did not match any split point, using default")
@@ -191,7 +216,7 @@ class PatientInfoParser:
         last_name = parts[-1]
         first_name = ' '.join(parts[:-1])
         
-        return first_name, last_name, True
+        return first_name, last_name, True, date_code
 
     def _parse_appointment_date(self, text: str) -> tuple[Optional[date], bool]:
         """

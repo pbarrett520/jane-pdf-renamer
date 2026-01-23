@@ -175,6 +175,60 @@ class TestPatientInfoParser:
             info = parser.parse(text)
             assert info.appointment_date == expected_date, f"Failed for {text}"
 
+    def test_parse_doi_in_patient_name(self):
+        """Parser should extract DOI code from patient name."""
+        parser = PatientInfoParser()
+        text = "Chart\nTest Patient 1 (DOI:010125)\nDecember 18, 2025"
+        # Use filename with initials to correctly split "Test" / "Patient 1"
+        info = parser.parse(text, filename="HealthStre_Chart_1_TP_20251218_88209-2.pdf")
+        assert info.date_code == "DOI010125"
+        assert info.first_name == "Test"
+        assert info.last_name == "Patient 1"  # Number preserved as part of compound name
+        assert info.is_complete()
+
+    def test_parse_dob_in_patient_name(self):
+        """Parser should extract DOB code from patient name."""
+        parser = PatientInfoParser()
+        text = "Chart\nTest Patient 1 (DOB:031590)\nDecember 18, 2025"
+        # Use filename with initials to correctly split "Test" / "Patient 1"
+        info = parser.parse(text, filename="HealthStre_Chart_1_TP_20251218_88209-2.pdf")
+        assert info.date_code == "DOB031590"
+        assert info.first_name == "Test"
+        assert info.last_name == "Patient 1"
+
+    def test_parse_doi_with_space(self):
+        """Parser should handle DOI with space after colon."""
+        parser = PatientInfoParser()
+        text = "Chart\nTest Patient 1 (DOI: 010125)\nDecember 18, 2025"
+        info = parser.parse(text)
+        assert info.date_code == "DOI010125"
+
+    def test_parse_doi_case_insensitive(self):
+        """Parser should handle lowercase doi/dob."""
+        parser = PatientInfoParser()
+        text = "Chart\nTest Patient 1 (doi:010125)\nDecember 18, 2025"
+        info = parser.parse(text)
+        assert info.date_code == "DOI010125"  # Normalized to uppercase
+
+    def test_parse_no_doi_strips_trailing_number(self):
+        """Without DOI/DOB, trailing number should still be stripped."""
+        parser = PatientInfoParser()
+        text = "Chart\nTest Patient 1\nDecember 18, 2025"
+        info = parser.parse(text)
+        assert info.date_code is None
+        assert info.first_name == "Test"
+        assert info.last_name == "Patient"  # Number stripped
+
+    def test_parse_doi_with_initials(self):
+        """Parser should use initials to split name correctly with DOI."""
+        parser = PatientInfoParser()
+        text = "Chart\nTest Patient 1 (DOI:010125)\nDecember 18, 2025"
+        # Simulate filename with initials TP (Test, Patient 1)
+        info = parser.parse(text, filename="HealthStre_Chart_1_TP_20251218_88209-2.pdf")
+        assert info.first_name == "Test"
+        assert info.last_name == "Patient 1"
+        assert info.date_code == "DOI010125"
+
 
 class TestFileRenamer:
     """Tests for file renaming logic."""
@@ -321,6 +375,46 @@ class TestFileRenamer:
         stem = result.stem  # "Patient, Test 121825 PT Note_HASH"
         hash_part = stem.split("_")[-1]
         assert 6 <= len(hash_part) <= 8
+
+    def test_generate_filename_with_doi_code(self):
+        """Filename should use DOI code instead of date when present."""
+        renamer = FileRenamer(file_format=FileFormat.CURRENT_DISCHARGE)
+        info = PatientInfo(
+            first_name="Test",
+            last_name="Patient 1",
+            appointment_date=date(2025, 12, 18),
+            confidence=1.0,
+            date_code="DOI010125"
+        )
+        filename = renamer.generate_filename(info)
+        assert filename == "Patient 1, Test DOI010125 PT Chart Note.pdf"
+
+    def test_generate_filename_with_dob_code(self):
+        """Filename should use DOB code instead of date when present."""
+        renamer = FileRenamer(file_format=FileFormat.APPT_BILLING)
+        info = PatientInfo(
+            first_name="Jane",
+            last_name="Doe 2",
+            appointment_date=date(2025, 12, 18),
+            confidence=1.0,
+            date_code="DOB031590"
+        )
+        filename = renamer.generate_filename(info)
+        assert filename == "Doe 2, Jane DOB031590 PT Note.pdf"
+
+    def test_generate_filename_prefers_date_code_over_appointment_date(self):
+        """DOI/DOB code should take precedence over appointment date."""
+        renamer = FileRenamer()
+        info = PatientInfo(
+            first_name="Test",
+            last_name="Patient 1",
+            appointment_date=date(2025, 12, 18),  # Would be 121825
+            confidence=1.0,
+            date_code="DOI010125"  # Should use this instead
+        )
+        filename = renamer.generate_filename(info)
+        assert "DOI010125" in filename
+        assert "121825" not in filename
     
     def test_rename_identical_file_replaces_without_hash(self, temp_dir):
         """Renaming an identical file should replace it without adding hash."""

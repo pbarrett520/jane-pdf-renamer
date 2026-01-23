@@ -82,18 +82,21 @@ class FileRenamer:
         fmt = file_format or self.file_format
         use_current_date, suffix = FORMAT_CONFIG[fmt]
         
-        # Determine the date to use
-        if use_current_date:
+        # Determine the date string to use
+        if info.date_code:
+            # Use DOI/DOB code (e.g., "DOI010125") instead of date
+            date_str = info.date_code
+        elif use_current_date:
             target_date = date.today()
+            date_str = target_date.strftime("%m%d%y")
         elif info.appointment_date:
             target_date = info.appointment_date
+            date_str = target_date.strftime("%m%d%y")
         else:
-            raise ValueError("Cannot generate filename without appointment date")
+            raise ValueError("Cannot generate filename without appointment date or date code")
         
-        # Format date as MMDDYY
-        date_str = target_date.strftime("%m%d%y")
-        
-        # Build filename: Last, First MMDDYY Suffix.pdf
+        # Build filename: Last, First DATESTR Suffix.pdf
+        # DATESTR is either MMDDYY or DOI/DOB code like "DOI010125"
         filename = f"{info.last_name}, {info.first_name} {date_str} {suffix}.pdf"
         
         return filename
