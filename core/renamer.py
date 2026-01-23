@@ -83,9 +83,21 @@ class FileRenamer:
         use_current_date, suffix = FORMAT_CONFIG[fmt]
         
         # Determine the date string to use
+        # When DOI/DOB is present, include BOTH the code AND the appropriate date
         if info.date_code:
-            # Use DOI/DOB code (e.g., "DOI010125") instead of date
-            date_str = info.date_code
+            # Include DOI/DOB code plus the appropriate date
+            if use_current_date:
+                date_part = date.today().strftime("%m%d%y")
+            elif info.appointment_date:
+                date_part = info.appointment_date.strftime("%m%d%y")
+            else:
+                # Fallback to just the date code if no other date available
+                date_part = None
+            
+            if date_part:
+                date_str = f"{info.date_code} {date_part}"
+            else:
+                date_str = info.date_code
         elif use_current_date:
             target_date = date.today()
             date_str = target_date.strftime("%m%d%y")
@@ -99,7 +111,32 @@ class FileRenamer:
         # DATESTR is either MMDDYY or DOI/DOB code like "DOI010125"
         filename = f"{info.last_name}, {info.first_name} {date_str} {suffix}.pdf"
         
+        # Sanitize filename to remove characters that are invalid in file paths
+        # Replace forward/back slashes and other problematic characters
+        filename = self._sanitize_filename(filename)
+        
         return filename
+    
+    def _sanitize_filename(self, filename: str) -> str:
+        """
+        Remove or replace characters that are invalid in filenames.
+        
+        Args:
+            filename: The proposed filename.
+            
+        Returns:
+            Sanitized filename safe for filesystem use.
+        """
+        # Characters that are problematic in filenames across platforms
+        # / and \ are path separators, : is problematic on Windows/macOS
+        # < > " | ? * are invalid on Windows
+        invalid_chars = ['/', '\\', ':', '<', '>', '"', '|', '?', '*']
+        
+        result = filename
+        for char in invalid_chars:
+            result = result.replace(char, '')
+        
+        return result
 
     def rename_file(
         self, 

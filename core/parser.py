@@ -37,7 +37,8 @@ INITIALS_PATTERN = re.compile(r'_([A-Z]{2})_\d{8}_')
 
 # Regex to detect DOI (Date of Injury) or DOB (Date of Birth) in patient name
 # Pattern: (DOI:MMDDYY) or (DOB:MMDDYY) or (DOI: MMDDYY) or (DOB: MMDDYY)
-DOI_DOB_PATTERN = re.compile(r'\s*\((DOI|DOB):?\s*(\d{6})\)\s*$', re.IGNORECASE)
+# Also handles dates with slashes like (DOB: 01/02/25)
+DOI_DOB_PATTERN = re.compile(r'\s*\((DOI|DOB):?\s*(\d{2})[/\-]?(\d{2})[/\-]?(\d{2})\)\s*$', re.IGNORECASE)
 
 
 @dataclass
@@ -167,14 +168,15 @@ class PatientInfoParser:
         if not patient_name_line:
             return '', '', False, None
         
-        # Check for DOI/DOB pattern (e.g., "(DOI:010125)" or "(DOB:010125)")
+        # Check for DOI/DOB pattern (e.g., "(DOI:010125)" or "(DOB:010125)" or "(DOB: 01/02/25)")
         date_code = None
         doi_dob_match = DOI_DOB_PATTERN.search(patient_name_line)
         if doi_dob_match:
-            # Extract the code type (DOI or DOB) and date
+            # Extract the code type (DOI or DOB) and date parts
             code_type = doi_dob_match.group(1).upper()  # "DOI" or "DOB"
-            date_value = doi_dob_match.group(2)  # "010125"
-            date_code = f"{code_type}{date_value}"  # "DOI010125"
+            # Groups 2, 3, 4 are the date parts (MM, DD, YY) - may have had slashes between them
+            date_value = f"{doi_dob_match.group(2)}{doi_dob_match.group(3)}{doi_dob_match.group(4)}"
+            date_code = f"{code_type}{date_value}"  # "DOI010125" or "DOB010225"
             
             # Remove the DOI/DOB part from the name
             patient_name_line = DOI_DOB_PATTERN.sub('', patient_name_line).strip()
@@ -213,8 +215,15 @@ class PatientInfoParser:
             logger.debug("Initials did not match any split point, using default")
         
         # Default: Last word = Last Name, everything before = First Name
-        last_name = parts[-1]
-        first_name = ' '.join(parts[:-1])
+        # BUT if DOI/DOB is present and last part is a number, keep it with previous word
+        # (e.g., "Test Patient 1" -> first="Test", last="Patient 1")
+        if date_code and len(parts) >= 3 and parts[-1].isdigit():
+            # Trailing number with DOI/DOB - treat last TWO words as compound last name
+            last_name = ' '.join(parts[-2:])
+            first_name = ' '.join(parts[:-2])
+        else:
+            last_name = parts[-1]
+            first_name = ' '.join(parts[:-1])
         
         return first_name, last_name, True, date_code
 
