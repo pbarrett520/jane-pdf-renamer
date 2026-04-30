@@ -87,13 +87,14 @@
                 
                 <!-- Output Folder -->
                 <div class="output-folder">
-                    <div class="folder-row">
+                    <div class="folder-row" id="folder-display">
                         <span class="folder-icon">📁</span>
                         <span class="folder-path" id="folder-name">{{ default_output }}</span>
                     </div>
                     <button class="btn-browse" id="btn-browse">Change</button>
                 </div>
                 <input type="hidden" id="output-folder" value="{{ default_output }}">
+                <p class="drop-hint" id="folder-hint">Default output folder is used unless changed.</p>
                 
                 <!-- Results List -->
                 <div class="results-container" id="results-card">

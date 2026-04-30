@@ -38,6 +38,25 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
+def resolve_output_path(output_folder: str) -> Path:
+    """
+    Resolve user-provided output folder into a usable local filesystem path.
+
+    Rules:
+    - Empty value -> default temp Processed folder
+    - Expand "~" and environment vars
+    - Relative paths are rooted at the user's home directory to avoid
+      writing into app bundle/current working directory, which may be read-only.
+    """
+    if not output_folder:
+        return UPLOAD_DIR / "Processed"
+
+    expanded = Path(output_folder).expanduser()
+    if not expanded.is_absolute():
+        expanded = Path.home() / expanded
+    return expanded
+
+
 class ProcessResult(BaseModel):
     """Result of processing a PDF."""
     success: bool
@@ -147,11 +166,7 @@ async def upload_file(
             file_format = FileFormat.APPT_BILLING
         
         # Determine output folder
-        # If none specified, use a "Processed" folder in temp dir
-        if output_folder:
-            output_path = Path(output_folder)
-        else:
-            output_path = UPLOAD_DIR / "Processed"
+        output_path = resolve_output_path(output_folder)
         
         output_path.mkdir(parents=True, exist_ok=True)
         
@@ -207,10 +222,7 @@ async def rename_manual(
             file_format = FileFormat.APPT_BILLING
         
         # Determine output folder
-        if output_folder:
-            output_path = Path(output_folder)
-        else:
-            output_path = UPLOAD_DIR / "Processed"
+        output_path = resolve_output_path(output_folder)
         
         output_path.mkdir(parents=True, exist_ok=True)
         

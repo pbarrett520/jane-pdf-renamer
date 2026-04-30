@@ -37,8 +37,8 @@ INITIALS_PATTERN = re.compile(r'_([A-Z]{2})_\d{8}_')
 
 # Regex to detect DOI (Date of Injury) or DOB (Date of Birth) in patient name
 # Pattern: (DOI:MMDDYY) or (DOB:MMDDYY) or (DOI: MMDDYY) or (DOB: MMDDYY)
-# Also handles dates with slashes like (DOB: 01/02/25)
-DOI_DOB_PATTERN = re.compile(r'\s*\((DOI|DOB):?\s*(\d{2})[/\-]?(\d{2})[/\-]?(\d{2})\)\s*$', re.IGNORECASE)
+# Also handles dates with slashes like (DOB: 01/02/25) or 4-digit years like (DOI 10/27/2025)
+DOI_DOB_PATTERN = re.compile(r'\s*\((DOI|DOB):?\s*(\d{2})[/\-]?(\d{2})[/\-]?(\d{2,4})\)\s*$', re.IGNORECASE)
 
 
 @dataclass
@@ -176,7 +176,7 @@ class PatientInfoParser:
             code_type = doi_dob_match.group(1).upper()  # "DOI" or "DOB"
             # Groups 2, 3, 4 are the date parts (MM, DD, YY) - may have had slashes between them
             date_value = f"{doi_dob_match.group(2)}{doi_dob_match.group(3)}{doi_dob_match.group(4)}"
-            date_code = f"{code_type}{date_value}"  # "DOI010125" or "DOB010225"
+            date_code = f"{code_type} {date_value}"  # "DOI 010125" or "DOB 010225"
             
             # Remove the DOI/DOB part from the name
             patient_name_line = DOI_DOB_PATTERN.sub('', patient_name_line).strip()

@@ -143,6 +143,25 @@ function showReviewForm(result) {
     document.getElementById('review-date').value = result.date_str || '';
 }
 
+async function writeProcessedFileToSelectedDir(result) {
+    if (!window.selectedOutputDir) {
+        return result.new_path || '';
+    }
+
+    const tempResponse = await fetch(`/download/${encodeURIComponent(result.new_name)}`);
+    if (!tempResponse.ok) {
+        throw new Error(`Could not download processed file (HTTP ${tempResponse.status})`);
+    }
+
+    const fileBlob = await tempResponse.blob();
+    const fileHandle = await window.selectedOutputDir.getFileHandle(result.new_name, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(fileBlob);
+    await writable.close();
+
+    return `${window.selectedOutputDir.name}/${result.new_name}`;
+}
+
 document.getElementById('review-submit').addEventListener('click', async () => {
     const formData = new FormData();
     formData.append('filename', document.getElementById('review-filename').value);
@@ -150,7 +169,13 @@ document.getElementById('review-submit').addEventListener('click', async () => {
     formData.append('last_name', document.getElementById('review-last').value);
     formData.append('date_str', document.getElementById('review-date').value);
     formData.append('format_type', selectedFormat);
-    formData.append('output_folder', document.getElementById('output-folder').value);
+    // When browser folder handle is available, write to selected folder client-side
+    // and keep server output in temp storage.
+    if (window.selectedOutputDir) {
+        formData.append('output_folder', '');
+    } else {
+        formData.append('output_folder', document.getElementById('output-folder').value);
+    }
     
     try {
         const response = await fetch('/rename-manual', {
@@ -158,6 +183,20 @@ document.getElementById('review-submit').addEventListener('click', async () => {
             body: formData
         });
         const result = await response.json();
+
+        if (result.success && window.selectedOutputDir) {
+            try {
+                result.new_path = await writeProcessedFileToSelectedDir(result);
+            } catch (writeErr) {
+                addResult({
+                    success: false,
+                    original_name: result.original_name || document.getElementById('review-filename').value,
+                    error: `Renamed, but could not save to selected folder: ${writeErr.message}`
+                });
+                return;
+            }
+        }
+
         addResult(result);
         reviewForm.classList.remove('visible');
     } catch (error) {
@@ -174,6 +213,7 @@ const btnBrowse = document.getElementById('btn-browse');
 const folderInput = document.getElementById('output-folder');
 const folderName = document.getElementById('folder-name');
 const folderHint = document.getElementById('folder-hint');
+const folderDisplay = document.getElementById('folder-display');
 
 // Store the directory handle for later use
 let selectedDirHandle = null;
@@ -183,18 +223,21 @@ const hasFileSystemAccess = 'showDirectoryPicker' in window;
 
 if (!hasFileSystemAccess) {
     // Fallback: show text input instead
-    const folderDisplay = document.getElementById('folder-display');
-    folderDisplay.innerHTML = `<input type="text" id="output-folder-text" value="${folderInput.value}" 
-        style="flex:1; background:transparent; border:none; color:var(--text-primary); 
-        font-family:'Space Mono',monospace; font-size:0.85rem;"
-        placeholder="Enter folder path...">`;
-    
-    document.getElementById('output-folder-text').addEventListener('input', (e) => {
-        folderInput.value = e.target.value;
-    });
+    if (folderDisplay) {
+        folderDisplay.innerHTML = `<input type="text" id="output-folder-text" value="${folderInput.value}" 
+            style="flex:1; background:transparent; border:none; color:var(--text-primary); 
+            font-family:'Space Mono',monospace; font-size:0.85rem;"
+            placeholder="Enter folder path...">`;
+        
+        document.getElementById('output-folder-text').addEventListener('input', (e) => {
+            folderInput.value = e.target.value;
+        });
+    }
     
     btnBrowse.style.display = 'none';
-    folderHint.textContent = 'Enter the full path to your output folder.';
+    if (folderHint) {
+        folderHint.textContent = 'Enter the full path to your output folder.';
+    }
 }
 
 btnBrowse.addEventListener('click', async () => {
@@ -207,23 +250,30 @@ btnBrowse.addEventListener('click', async () => {
             mode: 'readwrite',
             startIn: 'downloads'
         });
+
+        // Store handle globally first so processing flow always uses the safe
+        // browser-side write path even if optional UI updates fail later.
+        window.selectedOutputDir = selectedDirHandle;
         
         // Update display
-        folderName.textContent = selectedDirHandle.name;
-        folderName.classList.remove('placeholder');
+        if (folderName) {
+            folderName.textContent = selectedDirHandle.name;
+            folderName.classList.remove('placeholder');
+        }
         
         // Store the path (we'll need to resolve it on the server side)
         folderInput.value = selectedDirHandle.name;
         
-        folderHint.innerHTML = `<span style="color: var(--accent-primary);">✓</span> Folder selected: <strong>${selectedDirHandle.name}</strong>`;
-        
-        // Store handle globally so we can write to it later
-        window.selectedOutputDir = selectedDirHandle;
+        if (folderHint) {
+            folderHint.innerHTML = `<span style="color: var(--accent-primary);">✓</span> Folder selected: <strong>${selectedDirHandle.name}</strong>`;
+        }
         
     } catch (err) {
         if (err.name !== 'AbortError') {
             console.error('Error selecting folder:', err);
-            folderHint.textContent = 'Could not select folder. Please try again.';
+            if (folderHint) {
+                folderHint.textContent = 'Could not select folder. Please try again.';
+            }
         }
     }
 });
@@ -284,18 +334,14 @@ handleFiles = async function(files) {
                 } else if (result.success) {
                     // Now write the file to the selected directory
                     try {
-                        const tempResponse = await fetch(`/download/${encodeURIComponent(result.new_name)}`);
-                        if (tempResponse.ok) {
-                            const fileBlob = await tempResponse.blob();
-                            const fileHandle = await window.selectedOutputDir.getFileHandle(result.new_name, { create: true });
-                            const writable = await fileHandle.createWritable();
-                            await writable.write(fileBlob);
-                            await writable.close();
-                            
-                            result.new_path = `${window.selectedOutputDir.name}/${result.new_name}`;
-                        }
+                        result.new_path = await writeProcessedFileToSelectedDir(result);
                     } catch (writeErr) {
-                        console.error('Error writing to selected folder:', writeErr);
+                        addResult({
+                            success: false,
+                            original_name: file.name,
+                            error: `Renamed, but could not save to selected folder: ${writeErr.message}`
+                        });
+                        continue;
                     }
                     addResult(result);
                 } else {
