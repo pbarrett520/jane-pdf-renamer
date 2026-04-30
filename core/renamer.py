@@ -107,9 +107,9 @@ class FileRenamer:
         else:
             raise ValueError("Cannot generate filename without appointment date or date code")
         
-        # Build filename: Last, First DATESTR Suffix.pdf
-        # DATESTR is either MMDDYY or DOI/DOB code like "DOI010125"
-        filename = f"{info.last_name}, {info.first_name} {date_str} {suffix}.pdf"
+        # Build filename: Last, First DATESTR Suffix [Subtype].pdf
+        subtype = f" {info.note_subtype}" if getattr(info, 'note_subtype', None) else ""
+        filename = f"{info.last_name}, {info.first_name} {date_str} {suffix}{subtype}.pdf"
         
         # Sanitize filename to remove characters that are invalid in file paths
         # Replace forward/back slashes and other problematic characters

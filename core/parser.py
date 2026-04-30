@@ -40,6 +40,12 @@ INITIALS_PATTERN = re.compile(r'_([A-Z]{2})_\d{8}_')
 # Also handles dates with slashes like (DOB: 01/02/25) or 4-digit years like (DOI 10/27/2025)
 DOI_DOB_PATTERN = re.compile(r'\s*\((DOI|DOB):?\s*(\d{2})[/\-]?(\d{2})[/\-]?(\d{2,4})\)\s*$', re.IGNORECASE)
 
+# Regex to match the base note type heading and capture any sub-type after it
+NOTE_TYPE_PATTERN = re.compile(
+    r'^(Follow Up|Discharge Visit|Initial Assessment|Progress Note)(.*)',
+    re.IGNORECASE
+)
+
 
 @dataclass
 class PatientInfo:
@@ -48,7 +54,8 @@ class PatientInfo:
     last_name: str
     appointment_date: Optional[date]
     confidence: float  # 0.0 to 1.0
-    date_code: Optional[str] = None  # e.g., "DOI010125" or "DOB010125"
+    date_code: Optional[str] = None  # e.g., "DOI 010125" or "DOB 010225"
+    note_subtype: Optional[str] = None  # e.g., "Ortho", "Vestibular", "Saucedo Rx"
 
     def is_complete(self) -> bool:
         """Check if all required fields are present."""
@@ -118,19 +125,21 @@ class PatientInfoParser:
         # Parse components (including DOI/DOB code if present)
         first_name, last_name, name_found, date_code = self._parse_patient_name(text, initials)
         appointment_date, date_found = self._parse_appointment_date(text)
-        
+        note_subtype = self._parse_note_subtype(text)
+
         # Calculate confidence - date_code also counts as having a date
         has_date = date_found or date_code is not None
         confidence = self._calculate_confidence(name_found, has_date, initials is not None)
-        
+
         logger.debug(f"Parse complete: confidence={confidence:.2f}")
-        
+
         return PatientInfo(
             first_name=first_name,
             last_name=last_name,
             appointment_date=appointment_date,
             confidence=confidence,
-            date_code=date_code
+            date_code=date_code,
+            note_subtype=note_subtype,
         )
 
     def _parse_patient_name(self, text: str, initials: Optional[str] = None) -> tuple[str, str, bool, Optional[str]]:
@@ -226,6 +235,28 @@ class PatientInfoParser:
             first_name = ' '.join(parts[:-1])
         
         return first_name, last_name, True, date_code
+
+    def _parse_note_subtype(self, text: str) -> Optional[str]:
+        """
+        Extract the note sub-type from the heading line that follows "Added by:".
+
+        E.g. "Follow Up - Ortho" → "Ortho"
+             "Follow Up Vestibular" → "Vestibular"
+             "Follow Up" → None
+        """
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            if 'added by' in line.lower():
+                for subsequent in lines[i + 1:]:
+                    stripped = subsequent.strip()
+                    if not stripped:
+                        continue
+                    match = NOTE_TYPE_PATTERN.match(stripped)
+                    if match:
+                        remainder = match.group(2).strip().lstrip('-–').strip()
+                        return remainder or None
+                    return None
+        return None
 
     def _parse_appointment_date(self, text: str) -> tuple[Optional[date], bool]:
         """
